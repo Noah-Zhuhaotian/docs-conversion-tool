@@ -1,4 +1,4 @@
-// simplified-automation.js - Convert Word documents to Markdown and extract all images
+// automation.js - Convert Word documents to Markdown and extract all images
 
 const fs = require('fs');
 const path = require('path');
@@ -9,7 +9,7 @@ const CONFIG = {
   sourceDir: './docs/word',        // Word documents directory
   outputDir: './docs/markdown',    // Markdown output directory
   imageDir: './docs/images',       // Image output directory
-  imageRefPrefix: '../images/'     // Image reference path prefix (relative for MkDocs)
+  imageRefPrefix: '/images/'       // Image reference path prefix
 };
 
 /**
@@ -62,10 +62,6 @@ async function processDocument(filePath) {
       markdown = `# ${title}\n\n${markdown}`;
     }
     
-    // Add metadata
-    const frontmatter = generateFrontmatter(fileName, markdown);
-    markdown = `${frontmatter}\n\n${markdown}`;
-    
     // Write the final Markdown file
     const outputPath = path.join(CONFIG.outputDir, `${fileName}.md`);
     fs.writeFileSync(outputPath, markdown);
@@ -99,34 +95,6 @@ function saveAndReturnImageInfo(imageBuffer, docName) {
     src: `${CONFIG.imageRefPrefix}${imageName}`,
     alt: `Image from ${docName}`
   };
-}
-
-/**
- * Generate frontmatter metadata for Markdown file
- * @param {string} title - Document title
- * @param {string} content - Markdown content
- */
-function generateFrontmatter(title, content) {
-  const now = new Date();
-  
-  // Extract a title from the first heading if available
-  let docTitle = title.replace(/-/g, ' ')
-                      .replace(/_/g, ' ')
-                      .replace(/\b\w/g, l => l.toUpperCase());
-  
-  // Try to extract first heading
-  const headingMatch = content.match(/^# (.+)$/m);
-  if (headingMatch && headingMatch[1]) {
-    docTitle = headingMatch[1];
-  }
-  
-  return `---
-title: ${docTitle}
-date: ${now.toISOString().split('T')[0]}
-last_updated: ${now.toISOString()}
-author: Automated Conversion
-original_format: Word
----`;
 }
 
 /**
