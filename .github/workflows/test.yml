@@ -73,8 +73,8 @@ jobs:
           fi
           
           # Test if script exists
-          if [ ! -f "simplified-automation.js" ]; then
-            echo "::error::simplified-automation.js script not found"
+          if [ ! -f "automation.js" ]; then
+            echo "::error::automation.js script not found"
             exit 1
           fi
           

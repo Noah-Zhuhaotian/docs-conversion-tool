@@ -44,7 +44,7 @@ jobs:
       - name: Run conversion
         run: |
           echo "Starting document conversion..."
-          node simplified-automation.js
+          node automation.js
       
       - name: Validate conversion
         run: |
