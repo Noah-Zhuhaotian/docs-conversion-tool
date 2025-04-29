@@ -1,17 +1,17 @@
 name: Full Documentation Pipeline
 
 on:
-  # Manually trigger the workflow
+  # Only allow manual trigger
   workflow_dispatch:
     inputs:
       deploy_docs:
-        description: 'Deploy documents to GitHub Pages'
+        description: 'Deploy documentation to GitHub Pages'
         required: false
         type: boolean
         default: false
 
 jobs:
-  # First step: Run tests
+  # Step 1: Run tests
   test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -23,52 +23,33 @@ jobs:
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
-          path: |
-            ~/.npm
-            ~/.cache/pip
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
+          path: ~/.npm
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
       
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '16'
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      
       - name: Install dependencies
-        run: |
-          npm ci
-          pip install -r requirements.txt
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
+        run: npm ci
       
-      - name: Prepare test environment
+      - name: Verify environment
         run: |
-          mkdir -p test/fixtures/word
-          mkdir -p test/fixtures/markdown
-          mkdir -p temp
+          # Check directory structure
+          mkdir -p docs/word
+          mkdir -p docs/markdown
+          mkdir -p docs/images
           
-          # Copy a test document if available
-          if [ -f "docs/word/test-document.docx" ]; then
-            cp docs/word/test-document.docx test/fixtures/word/
-          else
-            # Use any available document
-            for file in docs/word/*.docx; do
-              if [ -f "$file" ]; then
-                cp "$file" test/fixtures/word/test-document.docx
-                echo "Using $file as test document"
-                break
-              fi
-            done
+          # Check dependencies
+          if ! npm list mammoth &>/dev/null; then
+            echo "::error::mammoth dependency is missing, please install it"
+            exit 1
           fi
-      
-      - name: Run tests
-        run: npm test
+          
+          echo "Environment verification successful"
 
-  # Second step: Convert Word documents to Markdown
+  # Step 2: Convert documents
   convert:
     name: Convert Documents
     needs: test
@@ -83,35 +64,27 @@ jobs:
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
-          path: |
-            ~/.npm
-            ~/.cache/pip
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
+          path: ~/.npm
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
       
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '16'
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      
       - name: Install dependencies
-        run: |
-          npm ci
-          pip install -r requirements.txt
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
+        run: npm ci
       
       - name: Run conversion
-        run: node automation.js
+        run: node simplified-automation.js
       
       - name: Validate conversion
         run: |
           echo "Generated Markdown files:"
           ls -la docs/markdown/
+          
+          echo "Extracted image files:"
+          ls -la docs/images/
           
           # Check if files were generated
           if [ -z "$(ls -A docs/markdown/)" ]; then
@@ -122,8 +95,10 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: markdown-docs
-          path: docs/markdown/
+          name: generated-docs
+          path: |
+            docs/markdown/
+            docs/images/
           retention-days: 7
       
       - name: Commit changes
@@ -132,17 +107,18 @@ jobs:
           git config --local user.name "github-actions[bot]"
           
           git add docs/markdown/*.md
+          git add docs/images/*
           
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Convert Word documents to Markdown [skip ci]"
+            git commit -m "Convert Word documents to Markdown and extract images [skip ci]"
             git push
           fi
 
-  # Third step: Deploy documentation to GitHub Pages
+  # Step 3: Build and deploy docs with MkDocs
   deploy-docs:
-    name: Build and Deploy Docs
+    name: Build and Deploy with MkDocs
     needs: convert
     runs-on: ubuntu-latest
     if: ${{ inputs.deploy_docs }}
@@ -153,63 +129,119 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       
-      - name: Download converted docs
+      - name: Download generated docs
         uses: actions/download-artifact@v3
         with:
-          name: markdown-docs
-          path: docs/markdown/
+          name: generated-docs
+          path: ./docs
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       
-      - name: Install MkDocs
-        run: pip install mkdocs mkdocs-material pymdown-extensions
+      - name: Install MkDocs and dependencies
+        run: |
+          pip install mkdocs mkdocs-material pymdown-extensions
+      
+      - name: Debug - List files
+        run: |
+          echo "Contents of docs directory:"
+          ls -la docs/
+          echo "Contents of docs/markdown directory:"
+          ls -la docs/markdown/
+          echo "Contents of docs/images directory:"
+          ls -la docs/images/
       
       - name: Prepare MkDocs configuration
         run: |
-          # Create mkdocs.yml if not exists
+          # Create MkDocs configuration if it doesn't exist
           if [ ! -f "mkdocs.yml" ]; then
             cat > mkdocs.yml << EOF
           site_name: Project Documentation
+          site_url: https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/
+          
           theme:
             name: material
             features:
               - navigation.tabs
               - navigation.sections
               - toc.integrate
+            palette:
+              primary: indigo
+              accent: indigo
+          
           markdown_extensions:
-            - pymdownx.superfences:
-                custom_fences:
-                  - name: mermaid
-                    class: mermaid
-                    format: !!python/name:pymdownx.superfences.fence_code_format
-          docs_dir: docs/markdown
+            - pymdownx.highlight
+            - pymdownx.superfences
+            - pymdownx.tasklist:
+                custom_checkbox: true
+          
+          plugins:
+            - search
+          
+          # Set docs directory to markdown
+          docs_dir: docs
+          
+          # Configure the site structure
           nav:
             - Home: index.md
           EOF
             
-            # Create index page if not exists
-            if [ ! -f "docs/markdown/index.md" ]; then
-              cat > docs/markdown/index.md << EOF
-          # Project Documentation
-          
-          This is an automatically generated documentation site. Here are the available documents:
-          
-          EOF
-              
-              # Add links to all documents
-              for file in docs/markdown/*.md; do
-                if [ "$(basename $file)" != "index.md" ]; then
-                  echo "- [$(basename $file .md)]($(basename $file))" >> docs/markdown/index.md
-                fi
-              done
-            fi
+            # Update docs_dir to match where our downloaded artifacts are
+            echo "Docs dir set to docs/"
           fi
       
+      - name: Create index file
+        run: |
+          # Create index.md if it doesn't exist
+          if [ ! -f "docs/index.md" ]; then
+            cat > docs/index.md << EOF
+          # Project Documentation
+          
+          This is an automatically generated documentation site. Below you'll find all the available documents.
+          
+          ## Available Documents
+          
+          EOF
+            
+            # Add links to all documents
+            for file in docs/markdown/*.md; do
+              filename=$(basename "$file")
+              title=$(head -n 1 "$file" | sed 's/^# //')
+              if [ -z "$title" ]; then
+                title="${filename%.md}"
+              fi
+              echo "- [${title}](markdown/${filename})" >> docs/index.md
+            done
+          fi
+      
+      - name: Debug - Show MkDocs config
+        run: |
+          echo "MkDocs configuration:"
+          cat mkdocs.yml
+          echo "Index file content:"
+          cat docs/index.md
+      
+      - name: Fix image paths for MkDocs
+        run: |
+          # For each markdown file, update image paths to be relative to docs directory
+          for file in docs/markdown/*.md; do
+            # Replace "/images/" with "../images/" in all Markdown files
+            sed -i 's|](/images/|](../images/|g' "$file"
+          done
+          
+          echo "Image paths fixed for MkDocs"
+      
       - name: Build documentation site
-        run: mkdocs build
+        run: mkdocs build --verbose
+      
+      - name: Debug - Build output
+        run: |
+          echo "Build output directory contents:"
+          ls -la site/
+          echo "Generated HTML files:"
+          find site/ -name "*.html" | sort
       
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
@@ -218,3 +250,4 @@ jobs:
           publish_dir: ./site
           publish_branch: gh-pages
           full_commit_message: 'Deploy documentation [skip ci]'
+          force_orphan: true

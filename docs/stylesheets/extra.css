@@ -1,0 +1,102 @@
+/* Custom styles */
+
+/* Improve image display */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5rem auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  [data-md-color-scheme="slate"] img {
+    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Enhance document title styles */
+  h1 {
+    font-weight: 500 !important;
+    color: var(--md-primary-fg-color);
+    padding-bottom: 0.5rem;
+  }
+  
+  /* Optimize table styles */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+  }
+  
+  table th {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+  
+  [data-md-color-scheme="slate"] table th {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  table th, table td {
+    padding: 0.75rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  [data-md-color-scheme="slate"] table th, [data-md-color-scheme="slate"] table td {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Improve code block styles */
+  .highlight {
+    border-radius: 4px;
+  }
+  
+  /* Adjust list spacing */
+  ul, ol {
+    padding-left: 1.5rem;
+  }
+  
+  /* Enhance blockquote styles */
+  blockquote {
+    border-left: 4px solid var(--md-primary-fg-color);
+    margin: 1.5rem 0;
+    padding: 0.5rem 1rem;
+    background-color: rgba(0, 0, 0, 0.03);
+  }
+  
+  [data-md-color-scheme="slate"] blockquote {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  /* Improve link styles */
+  a {
+    color: var(--md-primary-fg-color);
+    text-decoration: none;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  }
+  
+  /* Adjust max content width */
+  .md-grid {
+    max-width: 1440px;
+  }
+  
+  /* Image gallery effect for pages with multiple images */
+  .md-content__inner {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .md-content__inner p img + img {
+    display: inline-block;
+    margin: 0.5rem;
+    vertical-align: top;
+  }
+  
+  .md-content__inner p:has(> img + img) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+  }

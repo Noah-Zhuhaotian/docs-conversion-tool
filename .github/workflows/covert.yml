@@ -1,7 +1,7 @@
 name: Convert Documents
 
 on:
-  # Automatically triggered when the "Test Dependencies and Environment" workflow completes successfully
+  # Auto-trigger on dev branch after test completes
   workflow_run:
     workflows: ["Test Dependencies and Environment"]
     types:
@@ -9,13 +9,13 @@ on:
     branches:
       - dev
   
-  # Manually trigger the workflow
+  # Allow manual trigger
   workflow_dispatch:
 
 jobs:
   convert:
     name: Convert Word to Markdown
-    # Only run this job if the previous workflow was successful or if manually triggered
+    # Only run when test workflow succeeds or on manual trigger
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch all history for all branches and tags
+          fetch-depth: 0  # Get full history for better version control
       
       - name: Cache Node modules
         uses: actions/cache@v3
@@ -33,78 +33,55 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
       
-      - name: Cache Python modules
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '16'
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      
       - name: Install dependencies
-        run: |
-          npm ci
-          pip install -r requirements.txt
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
+        run: npm ci
       
       - name: Run conversion
         run: |
           echo "Starting document conversion..."
-          node automation.js
+          node simplified-automation.js
       
       - name: Validate conversion
         run: |
           echo "Generated Markdown files:"
           ls -la docs/markdown/
           
-          # Check if any files were generated
+          echo "Extracted image files:"
+          ls -la docs/images/
+          
+          # Check if files were generated
           if [ -z "$(ls -A docs/markdown/)" ]; then
             echo "::error::No Markdown files were generated!"
             exit 1
           fi
-          
-          # Check for Mermaid diagrams
-          MERMAID_COUNT=0
-          for file in docs/markdown/*.md; do
-            if grep -q "```mermaid" "$file"; then
-              ((MERMAID_COUNT++))
-              echo "✓ File $(basename $file) contains Mermaid diagrams"
-            else
-              echo "! File $(basename $file) does not contain Mermaid diagrams"
-            fi
-          done
-          echo "Found $MERMAID_COUNT files with Mermaid diagrams."
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: markdown-docs
-          path: docs/markdown/
+          name: generated-docs
+          path: |
+            docs/markdown/
+            docs/images/
           retention-days: 7
       
       - name: Commit changes
-        # Only run this step if the branch is 'dev'
+        # Only auto-commit on dev branch
         if: ${{ github.ref == 'refs/heads/dev' }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
           git add docs/markdown/*.md
+          git add docs/images/*
           
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Auto-convert Word documents to Markdown [skip ci]"
+            git commit -m "Auto-convert Word documents to Markdown and extract images [skip ci]"
             git push
           fi

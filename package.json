@@ -9,11 +9,7 @@
   "scripts": {
     "start": "node automation.js",
     "test": "node test/test.js",
-    "setup": "npm install && pip install -r requirements.txt",
-    "convert": "node automation.js",
-    "watch": "nodemon --watch docs/word -e docx --exec 'npm run convert'",
-    "build-docs": "mkdocs build",
-    "serve-docs": "mkdocs serve"
+    "setup": "npm install"
   },
   "repository": {
     "type": "git",
@@ -22,14 +18,13 @@
   "keywords": [
     "documentation",
     "markdown",
-    "mermaid",
-    "flowchart",
     "word",
     "conversion",
+    "images",
     "github"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Noah-Zhuhaotian/docs-conversion-tool/issues"
   },
