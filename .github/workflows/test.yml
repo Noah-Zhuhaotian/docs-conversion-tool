@@ -6,7 +6,7 @@ on:
     branches: [dev]
     paths:
       - 'docs/word/**'
-      - 'simplified-automation.js'
+      - 'automation.js'
       - 'package.json'
   
   # Allow manual trigger
