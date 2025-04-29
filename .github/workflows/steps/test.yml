@@ -1,0 +1,102 @@
+name: Test Dependencies and Environment
+
+on:
+  # Automatically trigger on pull requests to the dev branch
+  push:
+    branches: [dev]
+    paths:
+      - 'docs/word/**'
+      - 'automation.js'
+      - 'scripts/**'
+      - 'test/**'
+      - 'requirements.txt'
+      - 'package.json'
+  
+  # Mannually trigger the workflow
+  workflow_dispatch:
+
+# This workflow is set to run on every push to the dev branch and on pull requests targeting the dev branch.
+# It will also run on any changes to the specified paths, including the automation.js scripts, test files, and requirements.txt.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      
+      - name: Cache Python modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install Node.js dependencies
+        run: npm ci
+      
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Install Tesseract OCR
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+      
+      - name: Prepare test environment
+        run: |
+          mkdir -p test/fixtures/word
+          mkdir -p test/fixtures/markdown
+          mkdir -p temp
+          
+          # If no test document, copy one from docs/word
+          if [ ! -f "test/fixtures/word/test-document.docx" ] && [ -f "docs/word/test-document.docx" ]; then
+            cp docs/word/test-document.docx test/fixtures/word/
+          fi
+          
+          # If still no test doc, use any available doc
+          if [ ! -f "test/fixtures/word/test-document.docx" ]; then
+            for file in docs/word/*.docx; do
+              if [ -f "$file" ]; then
+                cp "$file" test/fixtures/word/test-document.docx
+                echo "Using $file as test document"
+                break
+              fi
+            done
+          fi
+      
+      - name: Run tests
+        run: npm test
+        
+      - name: Generate output
+        id: test-result
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "tests_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "tests_passed=false" >> $GITHUB_OUTPUT
+          fi

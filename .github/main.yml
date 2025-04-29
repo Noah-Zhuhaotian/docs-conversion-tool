@@ -1,0 +1,220 @@
+name: Full Documentation Pipeline
+
+on:
+  # Manually trigger the workflow
+  workflow_dispatch:
+    inputs:
+      deploy_docs:
+        description: 'Deploy documents to GitHub Pages'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # First step: Run tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/pip
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+      
+      - name: Prepare test environment
+        run: |
+          mkdir -p test/fixtures/word
+          mkdir -p test/fixtures/markdown
+          mkdir -p temp
+          
+          # Copy a test document if available
+          if [ -f "docs/word/test-document.docx" ]; then
+            cp docs/word/test-document.docx test/fixtures/word/
+          else
+            # Use any available document
+            for file in docs/word/*.docx; do
+              if [ -f "$file" ]; then
+                cp "$file" test/fixtures/word/test-document.docx
+                echo "Using $file as test document"
+                break
+              fi
+            done
+          fi
+      
+      - name: Run tests
+        run: npm test
+
+  # Second step: Convert Word documents to Markdown
+  convert:
+    name: Convert Documents
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/pip
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+      
+      - name: Run conversion
+        run: node automation.js
+      
+      - name: Validate conversion
+        run: |
+          echo "Generated Markdown files:"
+          ls -la docs/markdown/
+          
+          # Check if files were generated
+          if [ -z "$(ls -A docs/markdown/)" ]; then
+            echo "::error::No Markdown files were generated!"
+            exit 1
+          fi
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: markdown-docs
+          path: docs/markdown/
+          retention-days: 7
+      
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          git add docs/markdown/*.md
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Convert Word documents to Markdown [skip ci]"
+            git push
+          fi
+
+  # Third step: Deploy documentation to GitHub Pages
+  deploy-docs:
+    name: Build and Deploy Docs
+    needs: convert
+    runs-on: ubuntu-latest
+    if: ${{ inputs.deploy_docs }}
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Download converted docs
+        uses: actions/download-artifact@v3
+        with:
+          name: markdown-docs
+          path: docs/markdown/
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install MkDocs
+        run: pip install mkdocs mkdocs-material pymdown-extensions
+      
+      - name: Prepare MkDocs configuration
+        run: |
+          # Create mkdocs.yml if not exists
+          if [ ! -f "mkdocs.yml" ]; then
+            cat > mkdocs.yml << EOF
+          site_name: Project Documentation
+          theme:
+            name: material
+            features:
+              - navigation.tabs
+              - navigation.sections
+              - toc.integrate
+          markdown_extensions:
+            - pymdownx.superfences:
+                custom_fences:
+                  - name: mermaid
+                    class: mermaid
+                    format: !!python/name:pymdownx.superfences.fence_code_format
+          docs_dir: docs/markdown
+          nav:
+            - Home: index.md
+          EOF
+            
+            # Create index page if not exists
+            if [ ! -f "docs/markdown/index.md" ]; then
+              cat > docs/markdown/index.md << EOF
+          # Project Documentation
+          
+          This is an automatically generated documentation site. Here are the available documents:
+          
+          EOF
+              
+              # Add links to all documents
+              for file in docs/markdown/*.md; do
+                if [ "$(basename $file)" != "index.md" ]; then
+                  echo "- [$(basename $file .md)]($(basename $file))" >> docs/markdown/index.md
+                fi
+              done
+            fi
+          fi
+      
+      - name: Build documentation site
+        run: mkdocs build
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          full_commit_message: 'Deploy documentation [skip ci]'
