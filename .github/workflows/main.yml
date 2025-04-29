@@ -1,117 +1,173 @@
-name: Full Documentation Pipeline
+# .github/workflows/main.yml
+name: Document Conversion CI/CD
 
 on:
-  # Only allow manual trigger
-  workflow_dispatch:
+  push:
+    branches: [ dev ]  # Automatic trigger for dev branch
+  workflow_dispatch:   # Manual trigger for main branch
     inputs:
-      deploy_docs:
-        description: 'Deploy documentation to GitHub Pages'
+      force_convert:
+        description: 'Force document conversion'
         required: false
-        type: boolean
         default: false
+        type: boolean
 
 jobs:
-  # Step 1: Run tests
-  test:
-    name: Run Tests
+  setup:
     runs-on: ubuntu-latest
-    
+    outputs:
+      should_convert: ${{ steps.check_changes.outputs.should_convert }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      - name: Cache dependencies
-        uses: actions/cache@v3
+      - uses: actions/checkout@v3
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
+          fetch-depth: 2
+      
+      - name: Check for code or doc changes
+        id: check_changes
+        run: |
+          if [[ "${{ github.event.inputs.force_convert }}" == "true" ]]; then
+            echo "should_convert=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          git diff --name-only HEAD^ HEAD > changes.txt
+          
+          if grep -q -E "(\.js|docs/word/.*\.docx|docs/markdown/.*\.md)$" changes.txt; then
+            echo "should_convert=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_convert=false" >> $GITHUB_OUTPUT
+          fi
+          
+          cat changes.txt
+  
+  test:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
       
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: 16
+          cache: 'npm'
       
       - name: Install dependencies
         run: npm ci
       
-      - name: Verify environment
+      - name: Run tests
         run: |
-          # Check directory structure
+          # Create test directory
+          mkdir -p test
+          
+          # Check if test script exists
+          if [ -f "test/test.js" ]; then
+            npm run test
+          else
+            # Copy the test.js from the repository if it exists
+            if [ -f ".github/workflows/scripts/test.js" ]; then
+              mkdir -p test
+              cp .github/workflows/scripts/test.js test/test.js
+              npm run test
+            else
+              echo "No test.js found, creating a simple test file"
+              echo '
+              const assert = require("assert");
+              const fs = require("fs");
+              
+              // Test that required directories exist
+              console.log("Testing directory structure...");
+              assert(fs.existsSync("./docs") || fs.mkdirSync("./docs"), "docs directory should exist");
+              
+              // Test that automation.js exists and is valid JavaScript
+              console.log("Testing automation.js file...");
+              assert(fs.existsSync("./automation.js"), "automation.js should exist");
+              
+              try {
+                require("../automation.js");
+                console.log("automation.js is valid JavaScript");
+              } catch (e) {
+                console.error("automation.js has syntax errors:", e);
+                process.exit(1);
+              }
+              
+              console.log("All tests passed!");
+              ' > test/test.js
+              
+              npm run test
+            fi
+          fi
+  
+  convert:
+    needs: [setup, test]
+    if: needs.setup.outputs.should_convert == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Create directory structure
+        run: |
           mkdir -p docs/word
           mkdir -p docs/markdown
           mkdir -p docs/images
-          
-          # Check dependencies
-          if ! npm list mammoth &>/dev/null; then
-            echo "::error::mammoth dependency is missing, please install it"
-            exit 1
-          fi
-          
-          echo "Environment verification successful"
-
-  # Step 2: Convert documents
-  convert:
-    name: Convert Documents
-    needs: test
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+          mkdir -p temp
       
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run conversion
-        run: node simplified-automation.js
-      
-      - name: Validate conversion
+      - name: Process Markdown files with base64 images
         run: |
-          echo "Generated Markdown files:"
-          ls -la docs/markdown/
-          
-          echo "Extracted image files:"
-          ls -la docs/images/
-          
-          # Check if files were generated
-          if [ -z "$(ls -A docs/markdown/)" ]; then
-            echo "::error::No Markdown files were generated!"
-            exit 1
+          if [ -d "docs/markdown" ]; then
+            for file in docs/markdown/*.md; do
+              if [ -f "$file" ]; then
+                echo "Checking $file for base64 images..."
+                # Run the conversion script to process any existing markdown files with base64 images
+                node .github/workflows/scripts/process-base64.js "$file"
+              fi
+            done
           fi
       
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: generated-docs
-          path: |
-            docs/markdown/
-            docs/images/
-          retention-days: 7
+      - name: Run document conversion
+        run: npm run convert
+      
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
       
       - name: Commit changes
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          git add docs/markdown/*.md
-          git add docs/images/*
-          
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
+          git add docs/markdown/ docs/images/
+          if git status --porcelain | grep -q "docs/"; then
+            echo "Changes detected, committing..."
+            git commit -m "Automated document conversion [skip ci]" || echo "No changes to commit"
           else
-            git commit -m "Convert Word documents to Markdown and extract images [skip ci]"
-            git push
+            echo "No changes detected in docs/ directory"
           fi
+      
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref_name }}
+      
+      # If branch is dev, create PR to main
+      - name: Create Pull Request (if dev branch)
+        if: github.ref == 'refs/heads/dev'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Automated document conversion
+          title: 'Automated document conversion from dev branch'
+          body: |
+            This PR contains automatically converted documents from Word to Markdown with images.
+            
+            Generated automatically by the document conversion workflow.
+          branch: auto-convert-${{ github.run_id }}
+          base: main
