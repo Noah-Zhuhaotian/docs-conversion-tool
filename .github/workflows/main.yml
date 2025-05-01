@@ -1,5 +1,4 @@
-# .github/workflows/main.yml
-name: Document Conversion CI/CD
+name: Markitdown Document Conversion
 
 on:
   push:
@@ -18,156 +17,75 @@ jobs:
     outputs:
       should_convert: ${{ steps.check_changes.outputs.should_convert }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
       
-      - name: Check for code or doc changes
+      - name: Check for doc changes
         id: check_changes
         run: |
-          if [[ "${{ github.event.inputs.force_convert }}" == "true" ]]; then
-            echo "should_convert=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          git diff --name-only HEAD^ HEAD > changes.txt
-          
-          if grep -q -E "(\.js|docs/word/.*\.docx|docs/markdown/.*\.md)$" changes.txt; then
-            echo "should_convert=true" >> $GITHUB_OUTPUT
-          else
+          if git diff --quiet HEAD^ HEAD -- docs/documents; then
+            echo "No changes in docs/documents"
             echo "should_convert=false" >> $GITHUB_OUTPUT
-          fi
-          
-          cat changes.txt
-  
-  test:
-    needs: setup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run tests
-        run: |
-          # Create test directory
-          mkdir -p test
-          
-          # Check if test script exists
-          if [ -f "test/test.js" ]; then
-            npm run test
           else
-            # Copy the test.js from the repository if it exists
-            if [ -f ".github/workflows/scripts/test.js" ]; then
-              mkdir -p test
-              cp .github/workflows/scripts/test.js test/test.js
-              npm run test
-            else
-              echo "No test.js found, creating a simple test file"
-              echo '
-              const assert = require("assert");
-              const fs = require("fs");
-              
-              // Test that required directories exist
-              console.log("Testing directory structure...");
-              assert(fs.existsSync("./docs") || fs.mkdirSync("./docs"), "docs directory should exist");
-              
-              // Test that automation.js exists and is valid JavaScript
-              console.log("Testing automation.js file...");
-              assert(fs.existsSync("./automation.js"), "automation.js should exist");
-              
-              try {
-                require("../automation.js");
-                console.log("automation.js is valid JavaScript");
-              } catch (e) {
-                console.error("automation.js has syntax errors:", e);
-                process.exit(1);
-              }
-              
-              console.log("All tests passed!");
-              ' > test/test.js
-              
-              npm run test
-            fi
+            echo "Changes detected in docs/documents"
+            echo "should_convert=true" >> $GITHUB_OUTPUT
           fi
   
   convert:
-    needs: [setup, test]
+    needs: setup
     if: needs.setup.outputs.should_convert == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: 16
-          cache: 'npm'
+          python-version: '3.13'
       
       - name: Install dependencies
-        run: npm ci
-      
-      - name: Create directory structure
         run: |
-          mkdir -p docs/word
-          mkdir -p docs/markdown
-          mkdir -p docs/images
-          mkdir -p temp
+          git clone git@github.com:microsoft/markitdown.git
+          cd markitdown
+          python -m pip install --upgrade pip
+          pip install -e 'packages/markitdown[all]'
+          pip list | findstr markitdown
       
-      - name: Process Markdown files with base64 images
-        run: |
-          if [ -d "docs/markdown" ]; then
-            for file in docs/markdown/*.md; do
-              if [ -f "$file" ]; then
-                echo "Checking $file for base64 images..."
-                # Run the conversion script to process any existing markdown files with base64 images
-                node .github/workflows/scripts/process-base64.js "$file"
-              fi
-            done
-          fi
       
-      - name: Run document conversion
-        run: npm run convert
       
-      - name: Configure Git
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+      # - name: Configure Git
+      #   run: |
+      #     git config --local user.email "action@github.com"
+      #     git config --local user.name "GitHub Action"
       
-      - name: Commit changes
-        run: |
-          git add docs/markdown/ docs/images/
-          if git status --porcelain | grep -q "docs/"; then
-            echo "Changes detected, committing..."
-            git commit -m "Automated document conversion [skip ci]" || echo "No changes to commit"
-          else
-            echo "No changes detected in docs/ directory"
-          fi
+      # - name: Commit changes
+      #   run: |
+      #     git add docs/markdown/ docs/images/
+      #     if git status --porcelain | grep -q "docs/"; then
+      #       echo "Changes detected, committing..."
+      #       git commit -m "Converted Word documents to Markdown [skip ci]" || echo "No changes to commit"
+      #     else
+      #       echo "No changes detected in docs/ directory"
+      #     fi
       
-      - name: Push changes
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref_name }}
+      # - name: Push changes
+      #   uses: ad-m/github-push-action@master
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     branch: ${{ github.ref_name }}
       
-      # If branch is dev, create PR to main
-      - name: Create Pull Request (if dev branch)
-        if: github.ref == 'refs/heads/dev'
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Automated document conversion
-          title: 'Automated document conversion from dev branch'
-          body: |
-            This PR contains automatically converted documents from Word to Markdown with images.
+      # # If branch is dev, create PR to main
+      # - name: Create Pull Request (if dev branch)
+      #   if: github.ref == 'refs/heads/dev'
+      #   uses: peter-evans/create-pull-request@v5
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     commit-message: Converted Word documents to Markdown
+      #     title: 'Word to Markdown conversion from dev branch'
+      #     body: |
+      #       This PR contains automatically converted documents from Word to Markdown using Markitdown.
             
-            Generated automatically by the document conversion workflow.
-          branch: auto-convert-${{ github.run_id }}
-          base: main
+      #       Generated automatically by the document conversion workflow.
+      #     branch: auto-convert-${{ github.run_id }}
+      #     base: main
