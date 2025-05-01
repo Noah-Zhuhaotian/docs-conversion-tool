@@ -1,2 +1,3 @@
 node_modules/
 markitdown/
+.github/workflows/scripts/__pycache__

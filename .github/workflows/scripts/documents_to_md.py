@@ -1,5 +1,6 @@
 import os
 from markitdown import MarkItDown
+from get_current_documents import DocumentSnapshotManager
 
 
 
@@ -28,7 +29,8 @@ def convert_documents_to_md(documents_dir, output_dir, enable_plugins=False):
             continue
 
         # Get the base name without extension for output file naming
-        base_name = os.path.splitext(filename)[0]
+        # base_name = os.path.splitext(filename)[0]
+        base_name = filename.replace('.', '_')
         output_filename = f"{base_name}.md"
         output_path = os.path.join(output_dir, output_filename)
 
@@ -46,16 +48,6 @@ def convert_documents_to_md(documents_dir, output_dir, enable_plugins=False):
         
     print(f"Convertaion complete!")
     
-
-
-
-
-
-
-
-
-
-
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
