@@ -62,7 +62,6 @@ jobs:
           cd markitdown
           python -m pip install --upgrade pip
           pip install -e 'packages/markitdown[all]'
-          pip list | findstr markitdown
 
       - name: Run convert script
         run: python .github/workflows/scripts/documents_to_md.py
