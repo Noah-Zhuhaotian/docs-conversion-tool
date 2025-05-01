@@ -11,6 +11,9 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: write
+
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -28,6 +31,14 @@ jobs:
           result=$(python .github/workflows/scripts/get_current_documents.py)
           echo "changed=$result"
           echo "changed=$result" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push updated snapshot
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add documents_snapshot.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update documents snapshot"
+          git push
   
   # convert:
   #   needs: setup
