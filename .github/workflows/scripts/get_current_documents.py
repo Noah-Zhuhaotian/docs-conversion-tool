@@ -101,12 +101,12 @@ if __name__ == "__main__":
     changed = False
     
     if manager_documents.detect_changed_files(current_documents_snapshot):
-        print("Documents has been Changed.")
+        # print("Documents has been Changed.")
         manager_documents.save_snapshot(current_documents_snapshot)
         changed = True
     
     if manager_markdown.detect_changed_files(current_markdown_snapshot):
-        print("Markdown has been Changed.")
+        # print("Markdown has been Changed.")
         manager_markdown.save_snapshot(current_markdown_snapshot)
         changed = True
     
