@@ -58,6 +58,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
           git clone https://github.com/microsoft/markitdown.git
           cd markitdown
           python -m pip install --upgrade pip
