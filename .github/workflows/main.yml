@@ -1,0 +1,87 @@
+name: Markitdown Document Conversion
+
+on:
+  push:
+    branches: [ dev ]  # Automatic trigger for dev branch
+  workflow_dispatch:   # Manual trigger for main branch
+    inputs:
+      force_convert:
+        description: 'Force document conversion'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: check the current files
+        id: check
+        run: |
+          result=$(python .github/workflows/scripts/get_current_documents.py)
+          echo "changed=$result"
+          echo "changed=$result" >> "$GITHUB_OUTPUT"
+  
+  # convert:
+  #   needs: setup
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.13'
+      
+  #     - name: Install dependencies
+  #       run: |
+  #         git clone git@github.com:microsoft/markitdown.git
+  #         cd markitdown
+  #         python -m pip install --upgrade pip
+  #         pip install -e 'packages/markitdown[all]'
+  #         pip list | findstr markitdown
+      
+      
+      
+      # - name: Configure Git
+      #   run: |
+      #     git config --local user.email "action@github.com"
+      #     git config --local user.name "GitHub Action"
+      
+      # - name: Commit changes
+      #   run: |
+      #     git add docs/markdown/ docs/images/
+      #     if git status --porcelain | grep -q "docs/"; then
+      #       echo "Changes detected, committing..."
+      #       git commit -m "Converted Word documents to Markdown [skip ci]" || echo "No changes to commit"
+      #     else
+      #       echo "No changes detected in docs/ directory"
+      #     fi
+      
+      # - name: Push changes
+      #   uses: ad-m/github-push-action@master
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     branch: ${{ github.ref_name }}
+      
+      # # If branch is dev, create PR to main
+      # - name: Create Pull Request (if dev branch)
+      #   if: github.ref == 'refs/heads/dev'
+      #   uses: peter-evans/create-pull-request@v5
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     commit-message: Converted Word documents to Markdown
+      #     title: 'Word to Markdown conversion from dev branch'
+      #     body: |
+      #       This PR contains automatically converted documents from Word to Markdown using Markitdown.
+            
+      #       Generated automatically by the document conversion workflow.
+      #     branch: auto-convert-${{ github.run_id }}
+      #     base: main
