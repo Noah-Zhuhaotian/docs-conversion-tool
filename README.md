@@ -43,7 +43,7 @@ The tool uses GitHub Actions to automate the conversion process:
 ### Manual Trigger
 You can manually trigger the workflow from the GitHub Actions tab with the option to force conversion of all documents.
 
-###Dependencies
+### Dependencies
 
 - Python 3.13
 - MarkItDown (from Microsoft)
