@@ -22,5 +22,29 @@
     "test_notebook.ipynb": "bd7c3e091283d0ffa845d425301101a3",
     "test_mskanji.csv": "9a63461283561344de4ef8cdec407324",
     "test.pdf": "7c501906378261a97582589244888432"
+  },
+  "markdown": {
+    "test_with_comment_docx.md": "84c38db9e047fcc0e7990142cf08358f",
+    "test_notebook_ipynb.md": "3d7ef8d26ea673bddf2484b369f5671d",
+    "test_pptx.md": "77990da30570901518a92071beabfc43",
+    "test_outlook_msg_msg.md": "a3e27479dcdd491dd184325dd159a839",
+    "equations_docx.md": "208cf67253831e1d4959cde21bed8ccc",
+    "test_pdf.md": "9d88423d638f91106a4278db951a0f06",
+    "test_rss_xml.md": "f11d6597a385ac2b4796fcdfbc1c5eb7",
+    "test_m4a.md": "7637b4643e86e1144989329c21699e83",
+    "test_mp3.md": "7637b4643e86e1144989329c21699e83",
+    "test_mskanji_csv.md": "e14471d880c9d5b59fa1503e83ca58a1",
+    "test_wikipedia_html.md": "fbb53f89667a17bccdd4d3159c436447",
+    "test_json.md": "1b03baa336b12c7568f00d4e3a163c81",
+    "test_files_zip.md": "424a915370a3b1e6eed3362fc6c9d0f0",
+    "test_serp_html.md": "695d660a50dc7fda335b96c90a290ccd",
+    "test_llm_jpg.md": "d41d8cd98f00b204e9800998ecf8427e",
+    "test_docx.md": "6e2c23931640cddf852a9e1f23317829",
+    "test_xls.md": "e97f0a8fabd048b90bfbc4c6d7c7cba0",
+    "test_wav.md": "7637b4643e86e1144989329c21699e83",
+    "test_xlsx.md": "e97f0a8fabd048b90bfbc4c6d7c7cba0",
+    "test_epub.md": "79fd1c02e10bdf46b712e958f5d6fa55",
+    "test_blog_html.md": "32b52349662bcc1ddbb5d94207e1ad11",
+    "test_jpg.md": "d41d8cd98f00b204e9800998ecf8427e"
   }
 }
