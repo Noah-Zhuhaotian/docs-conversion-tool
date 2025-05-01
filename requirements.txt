@@ -1,7 +1,0 @@
-opencv-python==4.8.0.76
-numpy==1.24.3
-pytesseract==0.3.10
-pillow==10.0.0
-mkdocs==1.5.2
-mkdocs-material==9.2.7
-pymdown-extensions==10.1
